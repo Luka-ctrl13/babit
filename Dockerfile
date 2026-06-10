@@ -2,6 +2,7 @@ FROM php:8.3-fpm-alpine
 
 # Install system dependencies
 RUN apk add --no-cache \
+    $PHPIZE_DEPS \
     nginx \
     supervisor \
     postgresql-dev \
@@ -12,7 +13,8 @@ RUN apk add --no-cache \
     oniguruma-dev \
     libxml2-dev \
     icu-dev \
-    linux-headers
+    linux-headers \
+    gettext
 
 # Install PHP extensions
 RUN docker-php-ext-install \
