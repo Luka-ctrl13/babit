@@ -1,6 +1,13 @@
 #!/bin/sh
 set -e
 
+# Default PORT to 80 if not set (Railway provides $PORT)
+export PORT="${PORT:-80}"
+
+# Substitute $PORT into Nginx config
+envsubst '$PORT' < /etc/nginx/nginx.conf > /etc/nginx/nginx.conf.tmp
+mv /etc/nginx/nginx.conf.tmp /etc/nginx/nginx.conf
+
 cd /var/www/html
 
 # Generate app key if missing
