@@ -1,6 +1,6 @@
 FROM php:8.3-fpm-alpine
 
-# Install system dependencies (includes PHPIZE_DEPS for PECL + all needed libs)
+# Install system dependencies
 RUN apk add --no-cache \
     $PHPIZE_DEPS \
     nginx \
@@ -19,7 +19,8 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     libpng-dev \
     libzip-dev \
-    zip
+    zip \
+ && mkdir -p /var/log/supervisor /run/nginx /run/php
 
 # Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -37,7 +38,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     fileinfo \
     exif
 
-# Install Redis extension via PECL (PHPIZE_DEPS already installed above)
+# Install Redis extension via PECL
 RUN pecl install redis \
  && docker-php-ext-enable redis \
  && apk del $PHPIZE_DEPS
@@ -50,7 +51,7 @@ WORKDIR /var/www/html
 # Copy composer files first (layer cache)
 COPY composer.json composer.lock ./
 
-# Increase PHP memory for composer
+# Unlimited memory during composer install
 RUN echo "memory_limit=-1" > $PHP_INI_DIR/conf.d/memory.ini
 
 RUN COMPOSER_ALLOW_SUPERUSER=1 \
@@ -64,19 +65,18 @@ RUN COMPOSER_ALLOW_SUPERUSER=1 \
 # Copy full application
 COPY . .
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www/html \
- && chmod -R 755 /var/www/html/storage \
- && chmod -R 755 /var/www/html/bootstrap/cache
+# Set storage permissions (use nobody:nobody since Alpine php-fpm runs as www-data)
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+ && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Dump autoload with scripts now that full app is present
+# Dump optimized autoload (with full app present)
 RUN COMPOSER_ALLOW_SUPERUSER=1 composer dump-autoload --optimize
 
 # Copy runtime configs
-COPY docker/nginx.conf /etc/nginx/nginx.conf
+COPY docker/nginx.conf     /etc/nginx/nginx.conf.template
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY docker/php.ini $PHP_INI_DIR/conf.d/app.ini
-COPY docker/entrypoint.sh /entrypoint.sh
+COPY docker/php.ini        $PHP_INI_DIR/conf.d/app.ini
+COPY docker/entrypoint.sh  /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 80
