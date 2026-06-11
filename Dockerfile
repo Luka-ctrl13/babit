@@ -22,7 +22,7 @@ RUN apk add --no-cache \
     zip \
  && mkdir -p /var/log/supervisor /run/nginx /run/php
 
-# Install PHP extensions
+# Install PHP extensions (pcntl + posix required by Laravel Horizon)
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
  && docker-php-ext-install -j$(nproc) \
     pdo \
@@ -36,7 +36,10 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     zip \
     gd \
     fileinfo \
-    exif
+    exif \
+    pcntl \
+    posix \
+    sockets
 
 # Install Redis extension via PECL
 RUN pecl install redis \
@@ -60,23 +63,24 @@ RUN COMPOSER_ALLOW_SUPERUSER=1 \
     --optimize-autoloader \
     --no-scripts \
     --no-interaction \
-    --prefer-dist
+    --prefer-dist \
+    --ignore-platform-reqs
 
 # Copy full application
 COPY . .
 
-# Set storage permissions (use nobody:nobody since Alpine php-fpm runs as www-data)
+# Set storage permissions
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
  && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Dump optimized autoload (with full app present)
-RUN COMPOSER_ALLOW_SUPERUSER=1 composer dump-autoload --optimize
+RUN COMPOSER_ALLOW_SUPERUSER=1 composer dump-autoload --optimize --no-scripts
 
 # Copy runtime configs
-COPY docker/nginx.conf     /etc/nginx/nginx.conf.template
+COPY docker/nginx.conf       /etc/nginx/nginx.conf.template
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY docker/php.ini        $PHP_INI_DIR/conf.d/app.ini
-COPY docker/entrypoint.sh  /entrypoint.sh
+COPY docker/php.ini          $PHP_INI_DIR/conf.d/app.ini
+COPY docker/entrypoint.sh    /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 80
